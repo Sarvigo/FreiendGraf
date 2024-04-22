@@ -1,6 +1,10 @@
 import requests
 import time
 import networkx as nx
+import scipy.cluster.hierarchy as sch
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial.distance import squareform
 from draw import draw_mesure_G
 
 token = 'vk1.a.6SAnvuJZYyK1FJRxpp8p0W7zEax3eqEI8mQ32x0pG1bN7iQBCP4sCv5hU2sMBRqo7HNSd2HRweDQkB8qbMUbNEumkjgl0YqQ9iwU89L0XroQFE-tSta13xne1XRM7BK4ozcLCxtW9r3OYlWkGWB2CnPAwAdNzAD59E7kT5Zoyn6iUNUHGAJE3ttGfGIshH_12r2FITqRoMbcGjWNLD54cA'
@@ -61,7 +65,7 @@ my_friends = my_friends_response['response']['items']
 
 def get_mutual_friends_batches(my_friends, myId):
     start_count = list(range(0, len(my_friends), 18))
-    end_count = [x + 18 for x in start_count]
+    end_count = [x + 17 for x in start_count]
 
     # Уменьшаем последний элемент в end_count, если он выходит за пределы списка
     if end_count[-1] > len(my_friends):
@@ -114,6 +118,34 @@ for friend in friends_data:
 no_neighbors_nodes = [node for node in G.nodes() if G.degree(node) < 10]
 G.remove_nodes_from(no_neighbors_nodes)
 
+def similarity(node1, node2, G):
+    distance = 1 / (1 + nx.shortest_path_length(G, node1, node2))
+    return distance
+
+# Создание матрицы сходства на основе метрики сходства
+def similarity_matrix(G):
+    nodes = list(G.nodes())
+    n = len(nodes)
+    S = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i, n):
+            sim = similarity(nodes[i], nodes[j], G)
+            S[i, j] = sim
+            S[j, i] = sim # Матрица сходства симметрична
+    return S
+
+S = similarity_matrix(G)
+
+# Преобразование матрицы расстояний в сжатую форму
+distances = nx.to_numpy_array(G)
+#condensed_distances = squareform(distances)
+
+# Выполнение иерархической кластеризации
+#Z = sch.linkage(distances, method='ward')
+Z = sch.linkage(S, method='average')
+#Z = sch.linkage(distances, method='complete')
+#Z = sch.linkage(distances, method='single')
+
 def print_max_metrics(G):
     betweenness_centrality = nx.betweenness_centrality(G)
     max_betweenness_node = max(betweenness_centrality, key=betweenness_centrality.get)
@@ -129,6 +161,21 @@ def print_max_metrics(G):
     max_eigenvector_node = max(eigenvector_centrality, key=eigenvector_centrality.get)
     print('Метрика собственного вектора: ', max_eigenvector_node)
 
+    # Визуализация дендрограммы
+    plt.figure(figsize=(10, 5))
+    plt.title('Dendrogram')
+    plt.xlabel('sample index')
+    plt.ylabel('distance')
+    sch.dendrogram(Z)
+    plt.show()
+
+    # Визуализация матрицы сходства в виде тепловой карты
+    plt.imshow(S, cmap='hot', interpolation='nearest')
+    plt.colorbar()  # Добавляем цветовую шкалу
+    plt.title('Similarity Matrix')
+    plt.xlabel('Samples')
+    plt.ylabel('Samples')
+    plt.show()
 
 print_max_metrics(G)
 
